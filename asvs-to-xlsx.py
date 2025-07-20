@@ -52,12 +52,23 @@ def format_sheet(workbook):
                     # cell.fill = grey_fill
 
         # Definining dimentions for each column
-        sheet.column_dimensions['A'].width = 50
-        sheet.column_dimensions['B'].width = 20
-        sheet.column_dimensions['C'].width = 100
-        sheet.column_dimensions['D'].width = 10
-        sheet.column_dimensions['E'].width = 20
-        sheet.column_dimensions['F'].width = 50
+        if sheet.title == "Progress Report":
+            # # column widths for Progress report
+            sheet.column_dimensions['A'].width = 60
+            sheet.column_dimensions['B'].width = 60
+            sheet.column_dimensions['C'].width = 20
+            sheet.column_dimensions['D'].width = 15
+            sheet.column_dimensions['E'].width = 15
+            sheet.column_dimensions['F'].width = 15
+            sheet.column_dimensions['G'].width = 15
+        else:
+            # column widths for each category of ASVS
+            sheet.column_dimensions['A'].width = 50
+            sheet.column_dimensions['B'].width = 20
+            sheet.column_dimensions['C'].width = 100
+            sheet.column_dimensions['D'].width = 10
+            sheet.column_dimensions['E'].width = 20
+            sheet.column_dimensions['F'].width = 50
 
 
 def create_workbook(json, custom_output_name, custom_columns):
@@ -67,9 +78,10 @@ def create_workbook(json, custom_output_name, custom_columns):
     workbook_title = f"{json['ShortName']}-{json['Version']}.xlsx"
     if custom_output_name:
         workbook_title = custom_output_name
+    progress = {}
     for requirement in json["Requirements"]:
-        print(requirement)
         sheet_name = f"{requirement['Shortcode']} - {requirement['Name']}"
+        progress[sheet_name] = {}
         wb.create_sheet(sheet_name)
         wb.active = wb[sheet_name]
         ws = wb.active
@@ -81,6 +93,8 @@ def create_workbook(json, custom_output_name, custom_columns):
         header_list = ["Category", "#", "Description", "Level", "Status", "Comments"] + custom_columns
         ws.append(header_list)
         for category in requirement["Items"]:
+            # collect categories, subcategories and no of items in each for preparing the progress report
+            progress[sheet_name][f"{category['Shortcode']}: {category['Name']}"] = len(category["Items"])
             for item in category["Items"]:
                 ws.append(
                     [
@@ -97,6 +111,25 @@ def create_workbook(json, custom_output_name, custom_columns):
 
                 # attach the dropdown to just that cell
                 dv_status.add(ws[f"E{row}"])
+
+    # create a progress sheet
+    sheet_name = "Progress Report"
+    wb.create_sheet(sheet_name, index=0)
+    wb.active = wb[sheet_name]
+    ws = wb.active
+
+    # Adding rows to progress sheet
+    header_list = ["Category", "Subcategory", "Total Checks", "ToDo", "Done", "NA", "Progress"]
+    ws.append(header_list)
+    for category in progress:
+        start = 2
+        # count the no of items done/todo/na from the individual sheets for each subcategory
+        for subcategory, items in progress[category].items():
+            countToDo = f"=COUNTIF('{category}'!E${start}:E${start+items-1},$D$1)"
+            countDone = f"=COUNTIF('{category}'!E${start}:E${start+items-1},$E$1)"
+            countNA = f"=COUNTIF('{category}'!E${start}:E${start+items-1},$F$1)"
+            ws.append([category, subcategory, items, countToDo, countDone, countNA, None])
+            start += items
 
     format_sheet(wb)
     wb.save(filename=workbook_title)
